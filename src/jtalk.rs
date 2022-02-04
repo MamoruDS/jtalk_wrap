@@ -59,5 +59,16 @@ impl<'a> JTalk<'a> {
         self.logged_in = logged_in;
     }
 
-    pub async fn get_token(&mut self) {}
+    pub async fn get_token(&mut self) -> String {
+        let token = &self.csrf_token;
+        match &token {
+            Some(t) => {
+                format!("{t}")
+            }
+            None => {
+                self.update().await;
+                format!("{}", &self.csrf_token.as_ref().unwrap())
+            }
+        }
+    }
 }
