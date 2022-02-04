@@ -1,5 +1,46 @@
+use regex::Regex;
 use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
+
+pub async fn get_result(result_id: &str) -> Vec<(String, Option<String>)> {
+    let resp = Client::new()
+        .get(format!("https://j-talk.com/{}/raw", result_id))
+        .send()
+        .await
+        .unwrap();
+    let html = &resp.text().await.unwrap();
+    let re = Regex::new(r"\n|<br>").unwrap();
+    let html = format!("{}", re.replace_all(html, ""));
+    let re = Regex::new(r"###\sBRACKETS(.+)</body>").unwrap();
+    let caps = re.captures(&html).unwrap();
+    let re =
+        Regex::new(r"(([^\[|\]｜\p{Han}]{0,}(\p{Han}{1,}))\[([\p{Hiragana}|\p{Han}]+)])").unwrap();
+    let mut results: Vec<(String, Option<String>)> = Vec::new();
+    for cap in re.captures_iter(caps.get(1).map_or("", |m| m.as_str())) {
+        let blk_len = &cap[2].chars().count();
+        let han_len = &cap[3].chars().count();
+        let text = &cap[2];
+        let hiragana = String::from(&cap[4]);
+        match blk_len - han_len {
+            0 => results.push((String::from(text), Some(hiragana))),
+            d if d > 0 => {
+                results.push((
+                    text.chars().collect::<Vec<char>>()[..d].iter().collect(),
+                    None,
+                ));
+                results.push((
+                    text.chars().collect::<Vec<char>>()[d..].iter().collect(),
+                    Some(hiragana),
+                ))
+            }
+            _ => {
+                // TODO:
+                panic!("blk_len({}) smaller than han_len({})", blk_len, han_len)
+            }
+        };
+    }
+    results
+}
 
 #[derive(Debug)]
 pub struct JTalk<'a> {
