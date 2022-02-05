@@ -1,9 +1,11 @@
+use crate::req::ReqClient;
+
 use regex::Regex;
 use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
 
-pub async fn get_result(result_id: &str) -> Vec<(String, Option<String>)> {
-    let resp = Client::new()
+pub async fn get_result<'a>(result_id: &str, client: &Client) -> Vec<(String, Option<String>)> {
+    let resp = client
         .get(format!("https://j-talk.com/{}/raw", result_id))
         .send()
         .await
@@ -44,6 +46,7 @@ pub async fn get_result(result_id: &str) -> Vec<(String, Option<String>)> {
 
 #[derive(Debug)]
 pub struct JTalk<'a> {
+    req_cli: ReqClient,
     csrf_token: Option<String>,
     logged_in: bool,
     account: Option<(&'a str, &'a str)>,
@@ -52,6 +55,7 @@ pub struct JTalk<'a> {
 impl<'a> JTalk<'a> {
     pub fn new(email: &'a str, password: &'a str) -> Self {
         JTalk {
+            req_cli: ReqClient::new(),
             csrf_token: None,
             logged_in: false,
             account: Some((email, password)),
@@ -60,10 +64,15 @@ impl<'a> JTalk<'a> {
 
     pub fn new_anonymous() -> Self {
         JTalk {
+            req_cli: ReqClient::new(),
             csrf_token: None,
             logged_in: false,
             account: None,
         }
+    }
+
+    fn client(&self) -> &Client {
+        &self.req_cli.client
     }
 
     pub async fn login(&mut self) {}
@@ -71,8 +80,8 @@ impl<'a> JTalk<'a> {
     pub async fn refresh(&self) -> (String, bool) {
         let token: String;
         let mut logged_in: bool = false;
-        let client = Client::new();
-        let resp = client
+        let resp = self
+            .client()
             .post("https://j-talk.com/convert")
             .send()
             .await
