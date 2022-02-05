@@ -1,15 +1,14 @@
-use crate::req::ReqClient;
+use crate::req::{Method, ReqClient};
 
 use regex::Regex;
-use reqwest::Client;
 use scraper::{ElementRef, Html, Selector};
 
-pub async fn get_result<'a>(result_id: &str, client: &Client) -> Vec<(String, Option<String>)> {
-    let resp = client
-        .get(format!("https://j-talk.com/{}/raw", result_id))
-        .send()
-        .await
-        .unwrap();
+pub async fn get_result<'a>(
+    result_id: &str,
+    req_client: &ReqClient,
+) -> Vec<(String, Option<String>)> {
+    let req = req_client.prepare(Method::GET, format!("https://j-talk.com/{}/raw", result_id));
+    let resp = req.send().await.unwrap();
     let html = &resp.text().await.unwrap();
     let re = Regex::new(r"\n|<br>").unwrap();
     let html = format!("{}", re.replace_all(html, ""));
@@ -71,18 +70,14 @@ impl<'a> JTalk<'a> {
         }
     }
 
-    fn client(&self) -> &Client {
-        &self.req_cli.client
-    }
-
     pub async fn login(&mut self) {}
 
     pub async fn refresh(&self) -> (String, bool) {
         let token: String;
         let mut logged_in: bool = false;
         let resp = self
-            .client()
-            .post("https://j-talk.com/convert")
+            .req_cli
+            .prepare(Method::POST, "https://j-talk.com/convert")
             .send()
             .await
             .unwrap();
