@@ -1,4 +1,10 @@
-use reqwest::{header as Header, Client};
+use reqwest::{cookie::Jar, header as Header, Client, IntoUrl, RequestBuilder};
+use std::sync::Arc;
+
+pub enum Method {
+    GET,
+    POST,
+}
 
 pub fn get_default_headers() -> Header::HeaderMap {
     let mut headers = Header::HeaderMap::new();
@@ -8,17 +14,36 @@ pub fn get_default_headers() -> Header::HeaderMap {
 
 #[derive(Debug)]
 pub struct ReqClient {
-    pub client: Client,
+    jar: std::sync::Arc<Jar>,
+    client: Client,
 }
 
 impl ReqClient {
     pub fn new() -> Self {
+        let jar = std::sync::Arc::new(Jar::default());
         ReqClient {
+            jar: jar.clone(),
             client: Client::builder()
                 .default_headers(get_default_headers())
-                .cookie_store(true)
+                .cookie_provider(jar)
                 .build()
                 .unwrap(),
         }
+    }
+
+    pub fn client(&self) -> &Client {
+        &self.client
+    }
+
+    pub fn cookie_jar(&self) -> &Arc<Jar> {
+        &self.jar
+    }
+
+    pub fn prepare<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder {
+        let req_builder = match method {
+            Method::GET => self.client.get(url),
+            Method::POST => self.client.post(url),
+        };
+        req_builder
     }
 }
