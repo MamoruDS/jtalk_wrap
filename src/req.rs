@@ -1,4 +1,4 @@
-use reqwest::{cookie::Jar, header as Header, Client, IntoUrl, RequestBuilder};
+use reqwest::{cookie::Jar, header as Header, Client, ClientBuilder, IntoUrl, RequestBuilder};
 use std::sync::Arc;
 
 pub enum Method {
@@ -19,21 +19,27 @@ pub struct ReqClient {
 }
 
 impl ReqClient {
-    pub fn new() -> Self {
+    pub fn new(custom_client: Option<&dyn Fn(ClientBuilder) -> ClientBuilder>) -> Self {
         let jar = std::sync::Arc::new(Jar::default());
+        let j = jar.clone();
+        let cli_builder = Client::builder()
+            .default_headers(get_default_headers())
+            .cookie_provider(jar);
+
+        let cli_builder = match custom_client {
+            Some(f) => f(cli_builder),
+            None => cli_builder,
+        };
+
         ReqClient {
-            jar: jar.clone(),
-            client: Client::builder()
-                .default_headers(get_default_headers())
-                .cookie_provider(jar)
-                .build()
-                .unwrap(),
+            jar: j,
+            client: cli_builder.build().unwrap(),
         }
     }
 
-    pub fn client(&self) -> &Client {
-        &self.client
-    }
+    // pub fn client(&self) -> &Client {
+    //     &self.client
+    // }
 
     pub fn cookie_jar(&self) -> &Arc<Jar> {
         &self.jar
