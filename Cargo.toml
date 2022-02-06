@@ -1,6 +1,11 @@
 [package]
 name = "jtalk_wrap"
 version = "0.1.0"
+description = "cli-tool for j-talk.com"
+repository = "https://github.com/MamoruDS/jtalk_wrap"
+authors = ["MamoruDS <mamoruds.io@gmail.com>"]
+readme = "README.md"
+license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
@@ -8,4 +13,5 @@ regex = "1.5"
 reqwest = { version = "0.11", features = ["cookies"] }
 scraper = "0.12.0"
 serde = { version = "1.0.135", features = ["derive"] }
+serde_json = "1.0"
 tokio = { version = "1.16.1", features = ["full"] }
