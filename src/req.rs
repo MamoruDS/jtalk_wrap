@@ -13,12 +13,13 @@ pub fn get_default_headers() -> Header::HeaderMap {
 }
 
 #[derive(Debug)]
-pub struct ReqClient {
+pub struct ReqClient<'a> {
     jar: std::sync::Arc<Jar>,
     client: Client,
+    cookie_file_path: Option<&'a str>,
 }
 
-impl ReqClient {
+impl<'a> ReqClient<'a> {
     pub fn new(custom_client: Option<&dyn Fn(ClientBuilder) -> ClientBuilder>) -> Self {
         let jar = std::sync::Arc::new(Jar::default());
         let j = jar.clone();
@@ -34,6 +35,7 @@ impl ReqClient {
         ReqClient {
             jar: j,
             client: cli_builder.build().unwrap(),
+            cookie_file_path: None,
         }
     }
 
@@ -43,6 +45,10 @@ impl ReqClient {
 
     pub fn cookie_jar(&self) -> &Arc<Jar> {
         &self.jar
+    }
+
+    pub fn set_cookie_file(&mut self, path: &'a str) {
+        self.cookie_file_path = Some(path);
     }
 
     pub fn prepare<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder {
