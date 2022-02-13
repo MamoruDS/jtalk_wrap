@@ -1,4 +1,8 @@
-use reqwest::{cookie::Jar, header as Header, Client, ClientBuilder, IntoUrl, RequestBuilder};
+use reqwest::{
+    cookie::{CookieStore, Jar},
+    header as Header, Client, ClientBuilder, IntoUrl, RequestBuilder, Url,
+};
+use std::fs;
 use std::sync::Arc;
 
 pub enum Method {
@@ -42,6 +46,10 @@ impl<'a> ReqClient<'a> {
     // pub fn client(&self) -> &Client {
     //     &self.client
     // }
+
+    fn save_cookie_to_file(&self) {}
+
+    fn load_cookie_from_file(&self) {}
 
     pub fn cookie_jar(&self) -> &Arc<Jar> {
         &self.jar
