@@ -1,8 +1,11 @@
 use crate::req::{Method, ReqClient};
 
 use regex::Regex;
-use reqwest::{header::LOCATION, redirect::Policy, ClientBuilder, StatusCode, Url};
+use reqwest::{
+    cookie::CookieStore, header::LOCATION, redirect::Policy, ClientBuilder, StatusCode, Url,
+};
 use scraper::{ElementRef, Html, Selector};
+use std::fs;
 
 fn custom_client(client_builder: ClientBuilder) -> ClientBuilder {
     let custom_policy = Policy::custom(|attempt| {
@@ -33,10 +36,7 @@ fn custom_client(client_builder: ClientBuilder) -> ClientBuilder {
     client_builder.redirect(custom_policy)
 }
 
-pub async fn get_result<'a>(
-    result_id: &str,
-    req_client: &ReqClient,
-) -> Vec<(String, Option<String>)> {
+pub async fn get_result(result_id: &str, req_client: &ReqClient) -> Vec<(String, Option<String>)> {
     let req = req_client.prepare(Method::GET, format!("https://j-talk.com/{}/raw", result_id));
     let resp = req.send().await.unwrap();
     let html = &resp.text().await.unwrap();
@@ -84,6 +84,7 @@ struct Config<'a> {
     pub remember: bool,
 }
 
+#[allow(dead_code)]
 impl<'a> Config<'a> {
     pub fn has_account(&self) -> bool {
         match self.account {
@@ -101,23 +102,29 @@ impl<'a> Config<'a> {
 }
 
 #[derive(Debug)]
+#[allow(non_snake_case)]
 pub struct JTalk<'a> {
     req_cli: ReqClient,
+    cookie_file_path: Option<&'a str>,
     config: Config<'a>,
     csrf_token: Option<String>,
     logged_in: bool,
+    _JTALK_URL: Url,
 }
 
+#[allow(dead_code)]
 impl<'a> JTalk<'a> {
     pub fn new() -> Self {
         JTalk {
             req_cli: ReqClient::new(Some(&custom_client)),
+            cookie_file_path: None,
             config: Config {
                 account: None,
                 remember: false,
             },
             csrf_token: None,
             logged_in: false,
+            _JTALK_URL: Url::parse("https://j-talk.com/").unwrap(),
         }
     }
 
@@ -135,19 +142,64 @@ impl<'a> JTalk<'a> {
         self
     }
 
-    pub fn load_cookies(self, cookie: &str) -> Self {
-        let url = Url::parse("https://j-talk.com").unwrap();
-        self.req_cli.cookie_jar().add_cookie_str(cookie, &url);
+    pub fn set_cookies(self, cookie: String) -> Self {
+        self.load_cookies(cookie);
         self
+    }
+
+    pub fn set_cookie_file(mut self, path: &'a str) -> Self {
+        // self.req_cli.set_cookie_file(path);
+        self.cookie_file_path = Some(path);
+        self.load_cookie_from_file();
+        self
+    }
+
+    pub fn load_cookies(&self, cookie: String) {
+        let cookies = cookie.split('\n').collect::<Vec<&str>>();
+        for cookie in cookies {
+            self.req_cli
+                .cookie_jar()
+                .add_cookie_str(cookie, &self._JTALK_URL);
+        }
+    }
+
+    fn save_cookie_to_file(&self) {
+        if self.cookie_file_path.is_some() {
+            match self.req_cli.cookie_jar().cookies(&self._JTALK_URL) {
+                Some(header) => {
+                    if !header.is_empty() {
+                        let cookies = header
+                            .to_str()
+                            .unwrap()
+                            .split(" ")
+                            .collect::<Vec<&str>>()
+                            .join("\n");
+                        fs::write(self.cookie_file_path.unwrap(), &cookies);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    fn load_cookie_from_file(&self) {
+        if self.cookie_file_path.is_some() {
+            match fs::read_to_string(self.cookie_file_path.unwrap()) {
+                Ok(cookie_str) => {
+                    self.load_cookies(cookie_str);
+                }
+                _ => {}
+            }
+        }
     }
 
     pub fn is_logged_in(&self) -> bool {
         self.logged_in
     }
 
-    // pub fn request_client(&self) -> &ReqClient {
-    //     &self.req_cli
-    // }
+    pub fn request_client(&self) -> &ReqClient {
+        &self.req_cli
+    }
 
     pub async fn login(&mut self) {
         let token: &str = &(self.get_token().await);
@@ -201,6 +253,7 @@ impl<'a> JTalk<'a> {
             1 => logged_in = true,
             _ => {}
         };
+        self.save_cookie_to_file();
         (token, logged_in)
     }
 
@@ -241,6 +294,7 @@ impl<'a> JTalk<'a> {
         let url = Url::parse(id.to_str().unwrap()).unwrap();
         let split = url.path_segments().unwrap();
         let id = split.last().unwrap();
+        self.save_cookie_to_file();
         (String::from(id), self.get_convert_result(id).await)
     }
 

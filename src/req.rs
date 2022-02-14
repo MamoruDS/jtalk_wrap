@@ -1,8 +1,4 @@
-use reqwest::{
-    cookie::{CookieStore, Jar},
-    header as Header, Client, ClientBuilder, IntoUrl, RequestBuilder, Url,
-};
-use std::fs;
+use reqwest::{cookie::Jar, header as Header, Client, ClientBuilder, IntoUrl, RequestBuilder};
 use std::sync::Arc;
 
 pub enum Method {
@@ -17,13 +13,12 @@ pub fn get_default_headers() -> Header::HeaderMap {
 }
 
 #[derive(Debug)]
-pub struct ReqClient<'a> {
+pub struct ReqClient {
     jar: std::sync::Arc<Jar>,
     client: Client,
-    cookie_file_path: Option<&'a str>,
 }
 
-impl<'a> ReqClient<'a> {
+impl ReqClient {
     pub fn new(custom_client: Option<&dyn Fn(ClientBuilder) -> ClientBuilder>) -> Self {
         let jar = std::sync::Arc::new(Jar::default());
         let j = jar.clone();
@@ -39,7 +34,6 @@ impl<'a> ReqClient<'a> {
         ReqClient {
             jar: j,
             client: cli_builder.build().unwrap(),
-            cookie_file_path: None,
         }
     }
 
@@ -47,16 +41,8 @@ impl<'a> ReqClient<'a> {
     //     &self.client
     // }
 
-    fn save_cookie_to_file(&self) {}
-
-    fn load_cookie_from_file(&self) {}
-
     pub fn cookie_jar(&self) -> &Arc<Jar> {
         &self.jar
-    }
-
-    pub fn set_cookie_file(&mut self, path: &'a str) {
-        self.cookie_file_path = Some(path);
     }
 
     pub fn prepare<U: IntoUrl>(&self, method: Method, url: U) -> RequestBuilder {
