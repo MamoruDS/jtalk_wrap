@@ -45,7 +45,10 @@ pub async fn get_result(result_id: &str, req_client: &ReqClient) -> Vec<(String,
     let re = Regex::new(r"###\sBRACKETS(.+)</body>").unwrap();
     let caps = re.captures(&html).unwrap();
     let re = Regex::new(
-        r"((?P<blk>[^\[|\]｜\p{Han}]{0,}(?P<bot>\p{Han}{1,})?)(\[(?P<top>[\p{Hiragana}|\p{Han}]+)\])?)",
+        // using Han as delimiter
+        // r"((?P<blk>[^\[|\]｜\p{Han}]{0,}(?P<bot>\p{Han}{1,})?)(\[(?P<top>[\p{Hiragana}|\p{Han}]+)\])?)",
+        // using ^\[ as delimiter
+        r"((?P<blk>[^\[|\]｜\p{Han}]{0,}(?P<bot>[^\[]{1,})?)(\[(?P<top>[\p{Hiragana}|\p{Han}]+)\])?)",
     )
     .unwrap();
     let mut results: Vec<(String, Option<String>)> = Vec::new();
@@ -79,13 +82,13 @@ pub async fn get_result(result_id: &str, req_client: &ReqClient) -> Vec<(String,
 }
 
 #[derive(Debug)]
-struct Config<'a> {
-    pub account: Option<(&'a str, &'a str)>,
+struct Config {
+    pub account: Option<(String, String)>,
     pub remember: bool,
 }
 
 #[allow(dead_code)]
-impl<'a> Config<'a> {
+impl Config {
     pub fn has_account(&self) -> bool {
         match self.account {
             Some(_) => true,
@@ -93,27 +96,33 @@ impl<'a> Config<'a> {
         }
     }
     pub fn get_email(&self) -> &str {
-        self.account.unwrap().0
+        match &self.account {
+            Some(acc) => &acc.0,
+            _ => "",
+        }
     }
 
     pub fn get_password(&self) -> &str {
-        self.account.unwrap().1
+        match &self.account {
+            Some(acc) => &acc.1,
+            _ => "",
+        }
     }
 }
 
 #[derive(Debug)]
 #[allow(non_snake_case)]
-pub struct JTalk<'a> {
+pub struct JTalk {
     req_cli: ReqClient,
-    cookie_file_path: Option<&'a str>,
-    config: Config<'a>,
+    cookie_file_path: Option<String>,
+    config: Config,
     csrf_token: Option<String>,
     logged_in: bool,
     _JTALK_URL: Url,
 }
 
 #[allow(dead_code)]
-impl<'a> JTalk<'a> {
+impl JTalk {
     pub fn new() -> Self {
         JTalk {
             req_cli: ReqClient::new(Some(&custom_client)),
@@ -128,30 +137,33 @@ impl<'a> JTalk<'a> {
         }
     }
 
-    pub fn has_account(&self) -> bool {
-        self.config.has_account()
-    }
-
-    pub fn set_account(mut self, email: &'a str, password: &'a str) -> Self {
-        self.config.account = Some((email, password));
-        self
-    }
-
-    pub fn set_remember(mut self, remember: bool) -> Self {
+    pub fn remember(mut self, remember: bool) -> Self {
         self.config.remember = remember;
         self
     }
 
-    pub fn set_cookies(self, cookie: String) -> Self {
-        self.load_cookies(cookie);
-        self
+    pub fn has_account(&self) -> bool {
+        self.config.has_account()
     }
 
-    pub fn set_cookie_file(mut self, path: &'a str) -> Self {
-        // self.req_cli.set_cookie_file(path);
+    pub fn set_account(&mut self, email: String, password: String) {
+        self.config.account = Some((email, password));
+    }
+
+    pub fn set_cookies(&self, cookie: String) {
+        self.load_cookies(cookie);
+    }
+
+    pub fn set_cookie_file(&mut self, path: String) {
         self.cookie_file_path = Some(path);
         self.load_cookie_from_file();
-        self
+    }
+
+    pub async fn init(&mut self) {
+        self.update().await;
+        if !self.is_logged_in() && self.has_account() {
+            self.login().await;
+        }
     }
 
     pub fn load_cookies(&self, cookie: String) {
@@ -174,7 +186,7 @@ impl<'a> JTalk<'a> {
                             .split(" ")
                             .collect::<Vec<&str>>()
                             .join("\n");
-                        fs::write(self.cookie_file_path.unwrap(), &cookies);
+                        fs::write(self.cookie_file_path.as_ref().unwrap(), &cookies);
                     }
                 }
                 _ => {}
@@ -184,7 +196,7 @@ impl<'a> JTalk<'a> {
 
     fn load_cookie_from_file(&self) {
         if self.cookie_file_path.is_some() {
-            match fs::read_to_string(self.cookie_file_path.unwrap()) {
+            match fs::read_to_string(self.cookie_file_path.as_ref().unwrap()) {
                 Ok(cookie_str) => {
                     self.load_cookies(cookie_str);
                 }
