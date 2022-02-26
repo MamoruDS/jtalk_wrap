@@ -3,7 +3,7 @@ mod remap;
 mod req;
 
 use clap::Parser;
-use serde_json::json;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::env;
 use std::error::Error;
@@ -29,6 +29,16 @@ struct Args {
     remember: bool,
 }
 
+#[derive(Serialize, Debug, Clone, PartialEq)]
+struct Output {
+    id: String,
+    input: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    input_remap: Option<String>,
+    logged_in: bool,
+    result: Vec<jtalk::ConvertResult>,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
@@ -47,9 +57,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let k: char = a.get(0).unwrap().as_str().unwrap().chars().nth(0).unwrap();
                 cmap.insert(c.nth(0).unwrap(), k);
             }
-            remap::char_remap(&input, cmap)
+            Some(remap::char_remap(&input, cmap))
         }
-        None => format!("{}", input),
+        None => None,
     };
 
     match args.cookie_file {
@@ -64,16 +74,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
     j_cli.init().await;
 
-    let (id, result) = j_cli.convert(&input_remap).await;
-    println!(
-        "{}",
-        json!({
-                "id": id,
-                "input": &input,
-                "input_remap": &input_remap,
-                "logged_in": j_cli.is_logged_in(),
-                "result":result,
+    let (id, result) = j_cli
+        .convert(match &input_remap {
+            Some(text) => text,
+            _ => &input,
         })
-    );
+        .await;
+    let output = Output {
+        id,
+        input,
+        input_remap,
+        logged_in: j_cli.is_logged_in(),
+        result,
+    };
+    println!("{}", serde_json::to_string(&output).unwrap());
     Ok(())
 }
