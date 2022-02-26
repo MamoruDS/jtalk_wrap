@@ -7,6 +7,8 @@ use reqwest::{
 use scraper::{ElementRef, Html, Selector};
 use std::fs;
 
+pub type ConvertResult = (String, Option<String>);
+
 fn custom_client(client_builder: ClientBuilder) -> ClientBuilder {
     let custom_policy = Policy::custom(|attempt| {
         fn is_valid_redirect_path(path: &Vec<&str>) -> bool {
@@ -288,7 +290,7 @@ impl JTalk {
         }
     }
 
-    pub async fn convert(&mut self, text: &str) -> (String, Vec<(String, Option<String>)>) {
+    pub async fn convert(&mut self, text: &str) -> (String, Vec<ConvertResult>) {
         let token: &str = &(self.get_token().await);
         let params = [
             ("_token", token),
@@ -310,7 +312,7 @@ impl JTalk {
         (String::from(id), self.get_convert_result(id).await)
     }
 
-    pub async fn get_convert_result(&self, result_id: &str) -> Vec<(String, Option<String>)> {
+    pub async fn get_convert_result(&self, result_id: &str) -> Vec<ConvertResult> {
         get_result(result_id, &self.req_cli).await
     }
 }
